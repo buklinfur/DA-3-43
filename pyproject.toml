@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "visualize_categorical"
+version = "0.1.0"
+description = "CLI tool for categorical data visualization and analysis"
+authors = [
+    { name = "buklinfur", email = "buklinfur@outlook.com" },
+]
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "pandas",
+    "matplotlib",
+    "scikit-learn"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+[project.scripts]
+visualize-categorical = "visualize_categorical.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["visualize_categorical*"]
+exclude = ["tests*", "figures*"]
