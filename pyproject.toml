@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "visualize_categorical"
-version = "0.2.0"
+version = "0.3.1"
 description = "CLI tool for categorical data visualization and analysis"
 authors = [
     { name = "buklinfur", email = "buklinfur@outlook.com" },
