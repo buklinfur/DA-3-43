@@ -20,14 +20,29 @@ def create_synthetic_data(n: int = 100,
                           categories: Sequence[str] = ("red", "blue", "yellow"),
                           probs: Optional[Sequence[float]] = None,
                           seed: Optional[int] = None) -> pd.DataFrame:
-    """Generates a DataFrame with a categorical column of synthetic data, with optional probabilities and seed."""
+    """Creates DataFrame with categorial column and synthetic data. Ensures each category appears at least once when possible."""
     if probs is None:
         probs = [1 / len(categories)] * len(categories)
     if len(probs) != len(categories):
         raise ValueError("probs has to be the same size as categories")
     rng = np.random.default_rng(seed)
-    vals = rng.choice(categories, size=n, p=probs)
+
+    if n >= len(categories):
+        # ensure each category appears at least once
+        base = list(categories)
+        remaining = n - len(base)
+        if remaining > 0:
+            choices = rng.choice(categories, size=remaining, p=probs)
+            vals = np.array(base + choices.tolist())
+            rng.shuffle(vals)
+        else:
+            vals = np.array(base)
+    else:
+        # n < number of categories, just sample without guarantee
+        vals = rng.choice(categories, size=n, p=probs)
+
     return pd.DataFrame({column_name: vals})
+
 
 
 def load_csv(path: str | Path) -> pd.DataFrame:
