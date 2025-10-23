@@ -2,7 +2,7 @@
 from __future__ import annotations
 from typing import Iterable, Dict, Any, Optional, List
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, UTC
 import os
 
 import pandas as pd
@@ -23,6 +23,7 @@ def prepare_dataframe(df: pd.DataFrame, encode: Optional[str] = "onehot") -> pd.
         return encode_categorical(df.copy(), column=None, method=encode) if False else _encode_all_columns(df.copy(), method=encode)
     return df.copy()
 
+
 def _encode_all_columns(df: pd.DataFrame, method: str = "onehot") -> pd.DataFrame:
     """Encode all object / categorical columns using method. onehot expands columns."""
     cat_cols = df.select_dtypes(include=["object", "category"]).columns.tolist()
@@ -42,6 +43,7 @@ def _encode_all_columns(df: pd.DataFrame, method: str = "onehot") -> pd.DataFram
     else:
         raise ValueError(f"Unknown encode method: {method}")
 
+
 def compute_distributions(df: pd.DataFrame) -> Dict[str, Any]:
     """Compute per-column counts and rare categories summary."""
     res = {}
@@ -55,10 +57,16 @@ def compute_distributions(df: pd.DataFrame) -> Dict[str, Any]:
         }
     return res
 
+
 def compute_correlation_matrix(df: pd.DataFrame) -> pd.DataFrame:
     """Compute correlation matrix for numeric columns (after one-hot)."""
-    numeric = df.select_dtypes(include=[np.number])
+    numeric = df.select_dtypes(include=[np.number, "bool"]).copy()
+    # Convert bool → int if needed
+    for c in numeric.columns:
+        if numeric[c].dtype == bool:
+            numeric[c] = numeric[c].astype(int)
     return numeric.corr()
+
 
 def compute_mutual_info(df: pd.DataFrame, columns: Optional[List[str]] = None) -> pd.DataFrame:
     """Compute pairwise mutual information for categorical columns (slow but descriptive)."""
@@ -80,6 +88,14 @@ def compute_mutual_info(df: pd.DataFrame, columns: Optional[List[str]] = None) -
 def save_heatmap(corr: pd.DataFrame, out_path: Path, figsize=(10, 8)) -> Path:
     """Save heatmap image and return path."""
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    if corr.empty:
+        plt.figure(figsize=(4, 3))
+        plt.text(0.5, 0.5, "No numeric correlation available", ha="center", va="center")
+        plt.axis("off")
+        plt.savefig(out_path, dpi=150)
+        plt.close()
+        return out_path
+
     plt.figure(figsize=figsize)
     sns.heatmap(corr, cmap="vlag", center=0, xticklabels=True, yticklabels=True)
     plt.title("Correlation heatmap")
@@ -88,17 +104,19 @@ def save_heatmap(corr: pd.DataFrame, out_path: Path, figsize=(10, 8)) -> Path:
     plt.close()
     return out_path
 
+
 def save_csv(df: pd.DataFrame, out_path: Path) -> Path:
     """Save DataFrame to CSV and return path."""
     out_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(out_path, index=True)
     return out_path
 
+
 def build_markdown_report(results: Dict[str, Any], out_path: Path, include_images: bool = True) -> Path:
     """Create a markdown report with sections and (optionally) embed images."""
     lines: List[str] = []
     lines.append(f"# Categorical analysis report")
-    lines.append(f"Generated: {datetime.utcnow().isoformat()} UTC")
+    lines.append(f"Generated: {datetime.now(UTC).isoformat()} UTC")
     lines.append("")
 
     # distributions summary
@@ -142,12 +160,13 @@ def build_markdown_report(results: Dict[str, Any], out_path: Path, include_image
     out_path.write_text("\n".join(lines), encoding="utf-8")
     return out_path
 
+
 def _generate_conclusions(results: Dict[str, Any]) -> List[str]:
     """Heuristic conclusions extracted from results dict."""
     concl: List[str] = []
     # correlation extremes
     corr_df: Optional[pd.DataFrame] = results.get("corr")
-    if corr_df is not None and not corr_df.empty:
+    if corr_df is not None and not corr_df.empty and corr_df.dropna(how="all").shape[0] > 1:
         stacked = corr_df.where(np.triu(np.ones(corr_df.shape), k=1).astype(bool)).stack()
         if not stacked.empty:
             max_pair = stacked.idxmax()
@@ -190,7 +209,7 @@ def analyze_dataset(df: pd.DataFrame,
                     include: Iterable[str] = ("images", "csv", "text")) -> Dict[str, Any]:
     """Run full analysis pipeline and save outputs according to include list."""
     out_dir = Path(out_dir)
-    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     job_dir = out_dir / f"analysis_{ts}"
     job_dir.mkdir(parents=True, exist_ok=True)
 
@@ -206,17 +225,23 @@ def analyze_dataset(df: pd.DataFrame,
 
     # correlation
     corr = compute_correlation_matrix(df_prepared)
+    corr_clean = corr.dropna(axis=0, how="all").dropna(axis=1, how="all")
+
     results["corr"] = corr
     results["corr_shape"] = corr.shape
+
     if "csv" in include_set:
         path = save_csv(corr, job_dir / "correlation.csv")
         results["corr_csv"] = path
 
-    # heatmap
+    # heatmap 
     if "images" in include_set:
-        heat_path = job_dir / "heatmap.png"
-        save_heatmap(corr, heat_path)
-        results["heatmap"] = heat_path
+        if corr_clean.empty:
+            results["heatmap"] = None
+        else:
+            heat_path = job_dir / "heatmap.png"
+            results["heatmap"] = save_heatmap(corr_clean, heat_path)
+
 
     # mutual info (on original categorical columns)
     cat_cols = df.select_dtypes(include=["object", "category"]).columns.tolist()
