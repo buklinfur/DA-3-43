@@ -4,22 +4,28 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "visualize_categorical"
-version = "0.1.0"
+version = "0.2.0"
 description = "CLI tool for categorical data visualization and analysis"
 authors = [
     { name = "buklinfur", email = "buklinfur@outlook.com" },
 ]
 readme = "README.md"
+license = { text = "MIT" }
 requires-python = ">=3.9"
 dependencies = [
-    "pandas",
-    "matplotlib",
-    "scikit-learn"
+    "pandas>=2.0",
+    "matplotlib>=3.7",
+    "scikit-learn>=1.3",
+    "seaborn>=0.12"
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest",
+    "pytest>=8.0",
+    "pytest-cov",
+    "flake8",
+    "black",
+    "mypy",
 ]
 
 [project.scripts]
@@ -27,4 +33,21 @@ visualize-categorical = "visualize_categorical.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["visualize_categorical*"]
-exclude = ["tests*", "figures*"]
+exclude = ["tests*", "figures*", "analysis*", "examples*"]
+
+[tool.pytest.ini_options]
+addopts = "-v --color=yes"
+testpaths = ["tests"]
+
+[tool.black]
+line-length = 100
+target-version = ['py39']
+
+[tool.flake8]
+max-line-length = 100
+ignore = ["E203", "W503"]
+
+[tool.mypy]
+python_version = "3.9"
+strict = true
+ignore_missing_imports = true
