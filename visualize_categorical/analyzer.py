@@ -2,7 +2,7 @@
 from __future__ import annotations
 from typing import Iterable, Dict, Any, Optional, List
 from pathlib import Path
-from datetime import datetime, UTC
+from datetime import datetime
 import os
 
 import pandas as pd
@@ -116,7 +116,7 @@ def build_markdown_report(results: Dict[str, Any], out_path: Path, include_image
     """Create a markdown report with sections and (optionally) embed images."""
     lines: List[str] = []
     lines.append(f"# Categorical analysis report")
-    lines.append(f"Generated: {datetime.now(UTC).isoformat()} UTC")
+    lines.append(f"Generated: {datetime.utcnow().isoformat()} UTC")
     lines.append("")
 
     # distributions summary
@@ -209,7 +209,7 @@ def analyze_dataset(df: pd.DataFrame,
                     include: Iterable[str] = ("images", "csv", "text")) -> Dict[str, Any]:
     """Run full analysis pipeline and save outputs according to include list."""
     out_dir = Path(out_dir)
-    ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     job_dir = out_dir / f"analysis_{ts}"
     job_dir.mkdir(parents=True, exist_ok=True)
 
