@@ -27,15 +27,13 @@ def _parse_include(s: str) -> List[str]:
     return [x.strip() for x in s.split(",") if x.strip()]
 
 
-def run_visualize(
-    input_path: str | None,
-    column: str,
-    out_dir: str,
-    n: int = 100,
-    seed: int | None = 42,
-    encoder: str = "none",
-    export: bool = False,
-) -> dict:
+def run_visualize(input_path: str | None,
+                  column: str,
+                  out_dir: str,
+                  n: int = 100,
+                  seed: int | None = 42,
+                  encoder: str = "none",
+                  export: bool = False) -> dict:
     """Run visualization workflow (one column)."""
     out_dir = _ensure_out_dir(out_dir)
 
@@ -48,12 +46,9 @@ def run_visualize(
         df = encode_categorical(df, column, method=encoder)
         print(f"[INFO] Column '{column}' encoded using '{encoder}'")
 
-    # counts for plotting
     if encoder == "onehot":
-        # sum each one-hot column that starts with original column name + separator
         mask = df.columns.str.startswith(f"{column}_")
         counts = df.loc[:, mask].sum()
-        # keep index names as strings for plotting
         counts.index = [str(i) for i in counts.index]
     else:
         counts = count_categories(df, column)
@@ -75,17 +70,42 @@ def run_visualize(
     return result
 
 
-def run_analyze(
-    input_path: str,
-    out_dir: str = "analysis",
-    encode: str = "onehot",
-    include: str = "images,csv,text",
-) -> dict:
+def run_analyze(input_path: str | None = None,
+                out_dir: str = "analysis",
+                encode: str = "onehot",
+                include: str = "images,csv,text",
+                n: int = 100,
+                seed: int | None = 42) -> dict:
     """Run full dataset categorical analysis and save outputs."""
-    # load data
-    df = load_csv(input_path)
     include_list = _parse_include(include)
-    res = analyze_dataset(df, out_dir=out_dir, encode=None if encode == "none" else encode, include=include_list)
+
+    if input_path:
+        df = load_csv(input_path)
+    else:
+        categories_list = [
+            ["red", "blue", "yellow"],
+            ["small", "medium", "large"],
+            ["cat", "dog", "mouse"]
+        ]
+
+        df_list = []
+        for i, cats in enumerate(categories_list):
+            df_list.append(create_synthetic_data(
+                n=n,
+                column_name=f"feature_{i}",
+                categories=cats,
+                seed=(seed + i if seed else None)
+            ))
+
+        df = pd.concat(df_list, axis=1)
+
+
+    res = analyze_dataset(
+        df,
+        out_dir=out_dir,
+        encode=None if encode == "none" else encode,
+        include=include_list
+    )
     print(f"[INFO] Analysis complete. Report saved to: {res.get('report')}")
     return res
 
@@ -119,10 +139,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     # analyze subcommand (new)
     an = subparsers.add_parser("analyze", help="run full categorical analysis (multiple features)")
-    an.add_argument("--input", type=str, required=True, help="Path to input CSV file for analysis")
+    an.add_argument("--input", type=str, default=None, help="Path to input CSV file for analysis (optional, generates synthetic data if missing)")
     an.add_argument("--out-dir", type=str, default="analysis", help="Directory to save analysis outputs")
     an.add_argument("--encode", type=str, choices=["onehot", "ordinal", "label", "none"], default="onehot", help="Encode categorical columns before analysis")
     an.add_argument("--include", type=str, default="images,csv,text", help="Comma-separated parts to include in report: images,csv,text")
+    an.add_argument("--n", type=int, default=100, help="Number of rows for synthetic data if no CSV provided")
+    an.add_argument("--seed", type=int, default=42, help="Random seed for synthetic data generation")
 
     # legacy/simple flat args (kept for backward compatibility when no subcommand used)
     parser.add_argument("--input", type=str, default=None, help=argparse.SUPPRESS)
@@ -158,6 +180,8 @@ def main() -> int:
                 out_dir=args.out_dir,
                 encode=args.encode,
                 include=args.include,
+                n=args.n,
+                seed=args.seed,
             )
         else:
             # no subcommand: keep legacy behaviour (flat args)
